@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title> Loop-Kano Pixel Kit</title>
+    <link rel="icon" type="image/png" href="https://media.licdn.com/dms/image/v2/C560BAQFq7YErNcNtnA/company-logo_200_200/company-logo_200_200/0/1630668103802/loop_cs_logo?e=2147483647&v=beta&t=f7_35B2id3HTB6nTA_QdoObeheQXizED5viIiZkEhiI">
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 20px 36px;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            min-height: 100vh;
+        }
+
+        /* ── Logo ── */
+        #logo-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 20px;
+            padding-top: 4px;
+        }
+        #logo-wrap img {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #2d2d2d;
+        }
+        #logo-wrap h2 {
+            font-size: 16px;
+            font-weight: 500;
+            color: #c0c0c0;
+            letter-spacing: 0.4px;
+        }
+
+        /* ── Controls ── */
+        #controls {
+            margin-bottom: 14px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        button {
+            flex: 2;
+            padding: 13px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            background-color: #2f80ed;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.1s ease, background-color 0.2s;
+        }
+        button:active { transform: scale(0.97); }
+
+        #clear-btn { flex: 1; background-color: #eb5757; }
+        #test-btn  { flex: 1; background-color: #8e44ad; font-size: 12px; }
+
+        #color-wrapper {
+            position: relative;
+            width: 48px;
+            height: 46px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #333;
+            flex-shrink: 0;
+        }
+        #color-picker {
+            position: absolute;
+            top: -5px; left: -5px;
+            width: 60px; height: 60px;
+            border: none; background: none; cursor: pointer;
+        }
+
+        /* ── Grid ── */
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(16, 1fr);
+            gap: 3px;
+            width: 100%;
+            max-width: 500px;
+            background-color: #1a1a1a;
+            padding: 8px;
+            border-radius: 12px;
+            border: 1px solid #2d2d2d;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .cell {
+            aspect-ratio: 1;
+            background-color: #2a2a2a;
+            border-radius: 3px;
+            transition: background-color 0.05s ease;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="logo-wrap">
+        <img
+            src="https://media.licdn.com/dms/image/v2/C560BAQFq7YErNcNtnA/company-logo_200_200/company-logo_200_200/0/1630668103802/loop_cs_logo?e=2147483647&v=beta&t=f7_35B2id3HTB6nTA_QdoObeheQXizED5viIiZkEhiI"
+            alt="Loop Logo"
+            onerror="this.style.display='none'"
+        />
+        <h2> KANO - Pixel Kit</h2>
+    </div>
+
+    <div id="controls">
+        <button id="connect-btn">Connect Pixel Kit</button>
+        <div id="color-wrapper">
+            <input type="color" id="color-picker" value="#00ff00">
+        </div>
+        <button id="clear-btn">Clear</button>
+        <button id="test-btn">Test LEDs</button>
+    </div>
+
+    <div id="grid"></div>
+
+    <script>
+        // ─── Constants ───────────────────────────────────────────────
+        const WIDTH        = 16, HEIGHT = 8;
+        const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+        const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+
+        let txCharacteristic = null;
+        let writeCount       = 0;
+        let errorCount       = 0;
+
+        const grid        = document.getElementById('grid');
+        const colorPicker = document.getElementById('color-picker');
+        const connectBtn  = document.getElementById('connect-btn');
+
+        // ─── Console Logger (no visible UI panel) ────────────────────
+        function log(msg, type = 'info') {
+            const now = new Date();
+            const ts  = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}.${String(now.getMilliseconds()).padStart(3,'0')}`;
+            const label = `[${ts}] [${type.toUpperCase()}]`;
+            switch (type) {
+                case 'success': console.log (`%c${label} ${msg}`, 'color:#3fb950'); break;
+                case 'warn':    console.warn(`%c${label} ${msg}`, 'color:#d29922'); break;
+                case 'error':   console.error(`${label} ${msg}`);                  break;
+                case 'send':    console.log (`%c${label} ${msg}`, 'color:#bc8cff'); break;
+                default:        console.log (`%c${label} ${msg}`, 'color:#58a6ff'); break;
+            }
+        }
+
+        // ─── Build Grid ───────────────────────────────────────────────
+        log('Building 16×8 pixel grid...', 'info');
+        for (let y = 0; y < HEIGHT; y++) {
+            for (let x = 0; x < WIDTH; x++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.dataset.x = x;
+                cell.dataset.y = y;
+                grid.appendChild(cell);
+            }
+        }
+        log(`Grid ready — ${WIDTH * HEIGHT} cells created.`, 'success');
+
+        // ─── Helpers ──────────────────────────────────────────────────
+        function hexToRgbString(hex) {
+            const r = parseInt(hex.slice(1,3), 16);
+            const g = parseInt(hex.slice(3,5), 16);
+            const b = parseInt(hex.slice(5,7), 16);
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        // ─── Throttled BLE Write Queue ────────────────────────────────
+        let writeQueue = [];
+        let writeBusy  = false;
+
+        async function flushQueue() {
+            if (writeBusy || writeQueue.length === 0) return;
+            writeBusy = true;
+            while (writeQueue.length > 0) {
+                const payload = writeQueue.shift();
+                if (txCharacteristic) {
+                    try {
+                        await txCharacteristic.writeValueWithoutResponse(payload);
+                        writeCount++;
+                    } catch (e) {
+                        errorCount++;
+                        log(`Write error #${errorCount}: ${e.message}`, 'error');
+                    }
+                }
+                await new Promise(res => setTimeout(res, 8));
+            }
+            writeBusy = false;
+        }
+
+        function queueWrite(x, y, r, g, b) {
+            writeQueue.push(new Uint8Array([x, y, r, g, b]));
+            flushQueue();
+        }
+
+        // ─── Connect ──────────────────────────────────────────────────
+        connectBtn.addEventListener('click', async () => {
+            log('Requesting Bluetooth device scan...', 'info');
+            connectBtn.innerText = "Searching...";
+            connectBtn.style.backgroundColor = '#555';
+
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }]
+                });
+
+                log(`Device found: "${device.name}" (id: ${device.id.slice(0,8)}...)`, 'info');
+
+                device.addEventListener('gattserverdisconnected', () => {
+                    log('Device disconnected unexpectedly!', 'warn');
+                    txCharacteristic = null;
+                    connectBtn.innerText = "Reconnect";
+                    connectBtn.style.backgroundColor = '#eb5757';
+                });
+
+                log('Connecting to GATT server...', 'info');
+                const server = await device.gatt.connect();
+                log('GATT server connected.', 'success');
+
+                log(`Fetching primary service: ${SERVICE_UUID.slice(0,8)}...`, 'info');
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                log('Service found ✓', 'success');
+
+                log(`Fetching characteristic: ${CHAR_UUID.slice(0,8)}...`, 'info');
+                txCharacteristic = await service.getCharacteristic(CHAR_UUID);
+                log('Characteristic found ✓', 'success');
+
+                connectBtn.innerText = "Connected 🟢";
+                connectBtn.style.backgroundColor = "#27ae60";
+                log('BLE fully connected and ready to draw!', 'success');
+
+                log('Sending green confirmation flash to hardware...', 'send');
+                await flashGreenOnConnect();
+
+            } catch (err) {
+                log(`Connection failed: ${err.message}`, 'error');
+                connectBtn.innerText = "Connect Pixel Kit";
+                connectBtn.style.backgroundColor = '#2f80ed';
+                if (err.name !== 'NotFoundError') {
+                    alert("Pairing failed. Make sure your hardware is powered on and within range.");
+                }
+            }
+        });
+
+        async function flashGreenOnConnect() {
+            for (let y = 0; y < HEIGHT; y++)
+                for (let x = 0; x < WIDTH; x++)
+                    queueWrite(x, y, 0, 200, 0);
+
+            await new Promise(res => setTimeout(res, HEIGHT * WIDTH * 8 + 200));
+            await new Promise(res => setTimeout(res, 800));
+
+            log('Clearing green flash...', 'info');
+            for (let y = 0; y < HEIGHT; y++)
+                for (let x = 0; x < WIDTH; x++)
+                    queueWrite(x, y, 0, 0, 0);
+
+            log('Hardware ready for drawing.', 'success');
+        }
+
+        // ─── Paint Cell ───────────────────────────────────────────────
+        function paintCell(target) {
+            if (!target || !target.classList.contains('cell')) return;
+
+            const hex = colorPicker.value;
+            if (target.style.backgroundColor === hexToRgbString(hex)) return;
+
+            target.style.backgroundColor = hex;
+
+            const r = parseInt(hex.slice(1,3), 16);
+            const g = parseInt(hex.slice(3,5), 16);
+            const b = parseInt(hex.slice(5,7), 16);
+            const x = parseInt(target.dataset.x);
+            const y = parseInt(target.dataset.y);
+
+            log(`Paint (${x},${y}) → rgb(${r},${g},${b})  [total sent: ${writeCount}]`, 'send');
+
+            if (txCharacteristic) {
+                queueWrite(x, y, r, g, b);
+            } else {
+                log('No BLE connection — pixel drawn locally only.', 'warn');
+            }
+        }
+
+        // ─── Test LEDs ────────────────────────────────────────────────
+        document.getElementById('test-btn').addEventListener('click', async () => {
+            if (!txCharacteristic) {
+                log('TEST: No device connected.', 'error');
+                return;
+            }
+            log('Running LED test: sweeping red across all pixels...', 'info');
+            for (let y = 0; y < HEIGHT; y++)
+                for (let x = 0; x < WIDTH; x++)
+                    queueWrite(x, y, 200, 0, 0);
+
+            await new Promise(res => setTimeout(res, HEIGHT * WIDTH * 10 + 500));
+            log('Test complete — clearing.', 'success');
+            for (let y = 0; y < HEIGHT; y++)
+                for (let x = 0; x < WIDTH; x++)
+                    queueWrite(x, y, 0, 0, 0);
+        });
+
+        // ─── Clear ────────────────────────────────────────────────────
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            log('Clearing canvas...', 'warn');
+            document.querySelectorAll('.cell').forEach(c => c.style.backgroundColor = '');
+            if (txCharacteristic) {
+                for (let y = 0; y < HEIGHT; y++)
+                    for (let x = 0; x < WIDTH; x++)
+                        queueWrite(x, y, 0, 0, 0);
+                log(`Wipe queued — ${WIDTH * HEIGHT} pixels.`, 'success');
+            } else {
+                log('No BLE — cleared locally only.', 'warn');
+            }
+        });
+
+        // ─── Touch ────────────────────────────────────────────────────
+        grid.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const t = e.touches[0];
+            paintCell(document.elementFromPoint(t.clientX, t.clientY));
+        }, { passive: false });
+
+        grid.addEventListener('touchstart', (e) => paintCell(e.target));
+
+        // ─── Mouse ────────────────────────────────────────────────────
+        let isMouseDown = false;
+        grid.addEventListener('mousedown', (e) => { isMouseDown = true;  paintCell(e.target); });
+        grid.addEventListener('mouseover', (e) => { if (isMouseDown) paintCell(e.target); });
+        window.addEventListener('mouseup',  ()  => { isMouseDown = false; });
+
+        // ─── Init ─────────────────────────────────────────────────────
+        log('Controller ready. Click "Connect Pixel Kit" to begin.', 'success');
+        log(`Web Bluetooth supported: ${!!navigator.bluetooth}`, navigator.bluetooth ? 'success' : 'error');
+    </script>
+</body>
+</html>
