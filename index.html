@@ -148,6 +148,12 @@
         const colorPicker = document.getElementById('color-picker');
         const connectBtn  = document.getElementById('connect-btn');
 
+        if (!navigator.bluetooth) {
+    connectBtn.disabled = true;
+    connectBtn.innerText = "BLE not supported on iOS";
+    connectBtn.style.backgroundColor = "#555";
+}
+
         // ─── Console Logger (no visible UI panel) ────────────────────
         function log(msg, type = 'info') {
             const now = new Date();
