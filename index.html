@@ -110,9 +110,57 @@
             border-radius: 3px;
             transition: background-color 0.05s ease;
         }
+
+        /* ── iOS Error Overlay ── */
+        #ios-error-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background-color: rgba(18, 18, 18, 0.95);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .error-box {
+            background-color: #1a1a1a;
+            border: 2px solid #eb5757;
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+        }
+        .error-box h3 {
+            color: #eb5757;
+            font-size: 20px;
+            margin-bottom: 12px;
+        }
+        .error-box p {
+            color: #e0e0e0;
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+        .app-highlight {
+            background-color: #2d2d2d;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: bold;
+            color: #2f80ed;
+        }
     </style>
 </head>
 <body>
+
+    <div id="ios-error-overlay">
+        <div class="error-box">
+            <h3>⚠️ iOS Connection Error</h3>
+            <p>This web application cannot access Web Bluetooth directly on standard iOS browsers.</p>
+            <p>To control the Pixel Kit from this Apple device, please open this page using the <span class="app-highlight">Bluey</span> or <span class="app-highlight">WebBle</span> app available in the App Store.</p>
+        </div>
+    </div>
 
     <div id="logo-wrap">
         <img
@@ -147,12 +195,25 @@
         const grid        = document.getElementById('grid');
         const colorPicker = document.getElementById('color-picker');
         const connectBtn  = document.getElementById('connect-btn');
+        const errorOverlay = document.getElementById('ios-error-overlay');
+
+        // ─── iOS Detection Engine ─────────────────────────────────────
+        function checkIOS() {
+            const isIOSPlatform = /iPad|iPhone|iPod/.test(navigator.platform) || 
+                                  (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+            
+            // Show overlay if it's an iOS device AND Web Bluetooth isn't available (meaning they aren't using WebBle/Bluey yet)
+            if (isIOSPlatform && !navigator.bluetooth) {
+                errorOverlay.style.display = 'flex';
+            }
+        }
+        checkIOS();
 
         if (!navigator.bluetooth) {
-    connectBtn.disabled = true;
-    connectBtn.innerText = "BLE not supported on iOS";
-    connectBtn.style.backgroundColor = "#555";
-}
+            connectBtn.disabled = true;
+            connectBtn.innerText = "BLE not supported";
+            connectBtn.style.backgroundColor = "#555";
+        }
 
         // ─── Console Logger (no visible UI panel) ────────────────────
         function log(msg, type = 'info') {
